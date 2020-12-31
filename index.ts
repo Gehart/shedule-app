@@ -72,20 +72,20 @@ function main() {
 
 interface Shedule {
     odd?: {
-        monday?: [],
-        tuesday?: [],
-        wednesday?: [],
-        thursday?: [],
+        monday?: Lesson[],
+        tuesday?: Lesson[],
+        wednesday?: Lesson[],
+        thursday?: Lesson[],
         friday?: Lesson[],
-        sunday?: []
+        sunday?: Lesson[]
     },
     even?: {
-        monday?: [],
-        tuesday?: [],
-        wednesday?: [],
-        thursday?: [],
+        monday?: Lesson[],
+        tuesday?: Lesson[],
+        wednesday?: Lesson[],
+        thursday?: Lesson[],
         friday?: Lesson[],
-        sunday?: []
+        sunday?: Lesson[]
     }
 }
 
