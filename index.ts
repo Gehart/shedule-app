@@ -54,7 +54,7 @@ const firstSheetName = workbook.SheetNames[0];
 const workingSheet = workbook.Sheets[firstSheetName];
 
 // writeFile('sheet.json');
-function writeFile(outputFile, object) {
+function writeFile(outputFile : string, object: any) {
     const wbSheet = JSON.stringify(object); 
     fs.writeFile(outputFile, wbSheet, 'utf8', (err) => {
         if (err) throw err;
