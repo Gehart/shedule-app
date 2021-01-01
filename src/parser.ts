@@ -53,22 +53,22 @@ const sheetName = workbook.SheetNames[sheduleBaseColumns.nOfSheet];
 const workingSheet = workbook.Sheets[sheetName];
 
 const dayNameOfWeek = ['monday','tuesday','wednesday','thursday','friday','saturday'];
+
 main();
 function main() {
     const dayRanges: RowRange[] = findDaysRanges();
-    const parsedDays = dayRanges.map((el, i) => parseDay(el, dayNameOfWeek[i]));
+    const parsedDays = dayRanges.map((el, i) => 
+        parseDay(el, dayNameOfWeek[i]));
     const combined = joinParcedDays(parsedDays);
     writeFile('out/result.json', combined);
 }
 
-// TODO: попробовать с иммутабельностью позже
 function joinParcedDays(parsedDays: Shedule[]) {
-    let combined: Shedule = {odd:{},even:{}};
-    parsedDays.map( el => {
-        combined.odd = Object.assign(combined.odd, el.odd);
-        combined.even = Object.assign(combined.even, el.even);
+    return parsedDays.reduce((combined, current) => {
+        Object.assign(combined.odd, current.odd);
+        Object.assign(combined.even, current.even);
+        return combined;
     });
-    return combined;
 }
 
 function writeFile(outputFile : string, object: any) {
@@ -113,6 +113,12 @@ interface Shedule {
     }
 }
 
+// TODO: узнать про нормальный способ конструктора (с указанием типа для строгого typescript)
+function Shedule() {
+    this.odd = {};
+    this.even = {};
+}
+
 interface RowRange {
     start: number,
     end: number
@@ -127,23 +133,18 @@ interface ColumnRange {
 function parseDay(rowRange: RowRange, dayName: string): Shedule {
     const startRowOfDay = rowRange.start;
     const endRowOfDay = rowRange.end;
-    const day: Shedule = {
-        odd: { },
-        even: { }
-    };
+    const day: Shedule = new Shedule();
 
     for (let i = 0; i < endRowOfDay - startRowOfDay + 1; i++) {
         const currentRow = i + startRowOfDay;
-        // console.log('cur row = ', currentRow);
         
         const cellValue = getCellValue({c: sheduleBaseColumns.subgroup, r: currentRow});
-        // console.log(cellValue);
+
         if (!cellValue) continue; 
 
         const lesson : Lesson = {};
         lesson.name = cellValue.split(/\s+/).join(' ');
         const nOfLesson = Math.floor(i / 2);
-        // console.log('nOfLesson', lesson.nOfLesson);
 
         lesson.type = getCellValue({c: sheduleBaseColumns.typeOfLesson, r: currentRow});
         lesson.classroom = getCellValue({c: sheduleBaseColumns.classroom, r: currentRow});
@@ -205,7 +206,7 @@ function getCellValue(cellAddress: CellAddress) : string {
     const docMerges = workingSheet['!merges'];
     let cellValue = workingSheet[numberToCharAddress(cellAddress.c) + '' + (cellAddress.r + 1)];
 
-    if (!!cellValue) {
+    if (typeof cellValue != undefined && !!cellValue) {
         return (cellValue.v + '').trim();
     }
     else {
