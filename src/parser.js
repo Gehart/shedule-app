@@ -1,16 +1,13 @@
-var xlsx_node = require('node-xlsx'),
-    xlsx = require('xlsx'),
-    fs = require('fs');
-
+const xlsx_node = require('node-xlsx'), xlsx = require('xlsx'), fs = require('fs');
+const resourcesDir = 'resources/';
 const xlsFile = 'short_shedule.xlsx';
-var workbook = xlsx.readFile(xlsFile, {
+const workbook = xlsx.readFile(resourcesDir + xlsFile, {
     raw: false,
     cellText: false,
-    cellHTML: false,
+    celHTML: false,
     cellStyles: false,
     cellDates: true
 });
-
 const sheduleBase = {
     dayOfWeek: 0,
     nOfLesson: 1,
@@ -27,7 +24,7 @@ const sheduleBase = {
         }
     },
     subgroup: 4,
-    typeOfLesson: 6, 
+    typeOfLesson: 6,
     classroom: 7,
     startRowOfSheet: '0',
     endRowOfSheet: '14'
@@ -49,50 +46,24 @@ const sheduleBase = {
     // typeOfLesson: 'G', 
     // classroom: 'H',
 };
-
 const firstSheetName = workbook.SheetNames[0];
 const workingSheet = workbook.Sheets[firstSheetName];
-
-// writeFile('sheet.json');
-function writeFile(outputFile : string, object: any) {
-    const wbSheet = JSON.stringify(object); 
-    fs.writeFile(outputFile, wbSheet, 'utf8', (err) => {
-        if (err) throw err;
-        // console.log('file was saved!');
-    });
-}
-
 main();
 function main() {
-    // const cellValue = getCellValue({c:1,r:2});
-    // console.log('cellValue=',cellValue);
     const parsedDay = parseDay();
-    // console.log(parsedDay);
 }
-
-interface Shedule {
-    odd?: {
-        monday?: Lesson[],
-        tuesday?: Lesson[],
-        wednesday?: Lesson[],
-        thursday?: Lesson[],
-        friday?: Lesson[],
-        sunday?: Lesson[]
-    },
-    even?: {
-        monday?: Lesson[],
-        tuesday?: Lesson[],
-        wednesday?: Lesson[],
-        thursday?: Lesson[],
-        friday?: Lesson[],
-        sunday?: Lesson[]
-    }
+function writeFile(outputFile, object) {
+    const wbSheet = JSON.stringify(object);
+    fs.writeFile(outputFile, wbSheet, 'utf8', (err) => {
+        if (err) {
+            throw err;
+        }
+    });
 }
-
 function parseDay() {
     const startRowOfDay = 1;
     const endRowOfDay = 14;
-    const day: Shedule = {
+    const day = {
         odd: {
             friday: []
         },
@@ -100,67 +71,31 @@ function parseDay() {
             friday: []
         }
     };
-
     for (let i = 0; i < endRowOfDay - startRowOfDay + 1; i++) {
         const currentRow = i + startRowOfDay;
-        const cellValue = getCellValue({c: sheduleBase.subgroup, r: currentRow});
+        const cellValue = getCellValue({ c: sheduleBase.subgroup, r: currentRow });
         // console.log(cellValue);
-        if (!cellValue) continue; 
-
-        const lesson : Lesson = {};
+        if (!cellValue)
+            continue;
+        const lesson = {};
         lesson.name = cellValue.split(/\s+/).join(' ');
-        lesson.nOfLesson = Math.floor(i / 2);
+        const nOfLesson = Math.floor(i / 2);
         // console.log('nOfLesson', lesson.nOfLesson);
-
-        lesson.type = getCellValue({c: sheduleBase.typeOfLesson, r: currentRow});
-        lesson.classroom = getCellValue({c: sheduleBase.classroom, r: currentRow});
-
+        lesson.type = getCellValue({ c: sheduleBase.typeOfLesson, r: currentRow });
+        lesson.classroom = getCellValue({ c: sheduleBase.classroom, r: currentRow });
         if (i % 2 === 0) {
-            day.odd.friday[lesson.nOfLesson] = lesson;
+            day.odd.friday[nOfLesson] = lesson;
         }
         else {
-            day.even.friday[lesson.nOfLesson] = lesson;
+            day.even.friday[nOfLesson] = lesson;
         }
     }
-
-
-    writeFile('result.json', day);
+    writeFile('out/result.json', day);
 }
-// неделя
-//     четная
-//         день
-//             пары
-//                 номер пары
-//                 пара 
-//                 время пары ?
-//                 тип занятий
-//                 аудитория
-//     нечетная
-//         день
-//             пары
-//                 номер пары
-//                 пара
-//                 время пары ?
-//                 тип занятий
-//                 аудитория
-
-interface Lesson {
-    nOfLesson?: number,
-    name?: string,
-    type?: string,
-    classroom?: string
-}
-
-interface CellAddress {
-    c: number,
-    r: number
-}
-
 // получить значение в ячейке, даже если ячейка смежная
-function getCellValue(cellAddress: CellAddress) : string {
+function getCellValue(cellAddress) {
     const docMerges = workingSheet['!merges'];
     let cellValue = workingSheet[numberToCharAddress(cellAddress.c) + '' + (cellAddress.r + 1)];
-
     if (!!cellValue) {
         // console.log('вариант по хорошему');
         // console.log("type of cell", typeof(cellValue.v));
@@ -171,11 +106,10 @@ function getCellValue(cellAddress: CellAddress) : string {
         for (let merge of docMerges) {
             // если попадает в границы диапазона одного из !merges
             if ((cellAddress.c >= merge.s.c && cellAddress.c <= merge.e.c) &&
-                (cellAddress.r >= merge.s.r && cellAddress.r <= merge.e.r)) 
-            {
+                (cellAddress.r >= merge.s.r && cellAddress.r <= merge.e.r)) {
                 // console.log('merges=',merge);
                 // console.log(numberToCharAddress(merge.s.c) + '' + (merge.s.r + 1));
-                cellValue = workingSheet[numberToCharAddress(merge.s.c) + '' + (merge.s.r + 1)]; 
+                cellValue = workingSheet[numberToCharAddress(merge.s.c) + '' + (merge.s.r + 1)];
             }
         }
         if (!cellValue) {
@@ -186,12 +120,10 @@ function getCellValue(cellAddress: CellAddress) : string {
         }
     }
 }
-
 function numberToCharAddress(n) {
     var ACode = 'A'.charCodeAt(0);
     var ZCode = 'Z'.charCodeAt(0);
     var len = ZCode - ACode + 1;
-
     var charAddress = "";
     while (n >= 0) {
         charAddress = String.fromCharCode(n % len + ACode) + charAddress;
@@ -202,8 +134,6 @@ function numberToCharAddress(n) {
 // // Parse a file
 // const workSheetsFromFile = xlsx_node.parse(`${__dirname}/${xlsFile}`);
 // const jsonSheet = JSON.stringify(workSheetsFromFile[0]);
-
-
 /*
 найти столбец подгруппы
 идти сверху вниз, проверяя на !merges
@@ -214,7 +144,7 @@ function numberToCharAddress(n) {
         день
             пары
                 номер пары
-                пара 
+                пара
                 время пары ?
                 тип занятий
                 аудитория
@@ -228,4 +158,3 @@ function numberToCharAddress(n) {
                 тип занятий
                 аудитория
 */
-

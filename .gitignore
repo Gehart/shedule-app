@@ -4,3 +4,5 @@ package-lock.json
 *.json
 !tsconfig.json
 tmp/
+out/**/*
+!out/example.json

@@ -15,7 +15,7 @@ gulp.task("typescript", function () {
         .src()
         .pipe(tsProject())
         .js
-        .pipe(gulp.dest("."));
+        .pipe(gulp.dest("./src/"));
 });
 
     // haml         = require('gulp-haml');
