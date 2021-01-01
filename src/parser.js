@@ -1,6 +1,6 @@
 const xlsx_node = require('node-xlsx'), xlsx = require('xlsx'), fs = require('fs');
-const resourcesDir = 'resources/';
 // const xlsFile = 'short_shedule.xlsx';
+const resourcesDir = 'resources/';
 const xlsFile = 'univ_shedule.xls';
 const workbook = xlsx.readFile(resourcesDir + xlsFile, {
     raw: false,
@@ -10,7 +10,7 @@ const workbook = xlsx.readFile(resourcesDir + xlsFile, {
     cellDates: true
 });
 // объект с адресами основных колонок - времени занятий, группы, аудитории
-const sheduleBase = {
+const sheduleBaseColumns = {
     nOfSheet: 2,
     dayOfWeek: 0,
     nOfLesson: 1,
@@ -26,11 +26,17 @@ const sheduleBase = {
     startRowOfSheet: 8,
     endRowOfSheet: 90,
 };
-const sheetName = workbook.SheetNames[sheduleBase.nOfSheet];
+const sheetName = workbook.SheetNames[sheduleBaseColumns.nOfSheet];
 const workingSheet = workbook.Sheets[sheetName];
 main();
 function main() {
-    const parsedDay = parseDay({ start: 22, end: 35 });
+    const parsedDay = parseDay({ start: 22, end: 35 }, 'tuesday');
+    const anotherParsedDay = parseDay({ start: 79, end: 90 }, 'saturday');
+    // let parsedFile: Shedule = parsedDay;
+    // parsedFile.odd = Object.assign(parsedFile.odd, anotherParsedDay.odd); 
+    // parsedFile.even = Object.assign(parsedFile.even, anotherParsedDay.even); 
+    let parsedFile = Object.assign(parsedDay, anotherParsedDay);
+    writeFile('out/result.json', parsedFile);
     // const dayRanges = findDaysRanges();
 }
 function writeFile(outputFile, object) {
@@ -47,20 +53,17 @@ function findDaysRanges() {
     return [];
 }
 // TODO: сделать нормальный тип возврата
-function parseDay(rowRange) {
+function parseDay(rowRange, dayName) {
     const startRowOfDay = rowRange.start;
     const endRowOfDay = rowRange.end;
     const day = {
-        odd: {
-            friday: []
-        },
-        even: {
-            friday: []
-        }
+        odd: {},
+        even: {}
     };
     for (let i = 0; i < endRowOfDay - startRowOfDay + 1; i++) {
         const currentRow = i + startRowOfDay;
-        const cellValue = getCellValue({ c: sheduleBase.subgroup, r: currentRow });
+        // console.log('cur row = ', currentRow);
+        const cellValue = getCellValue({ c: sheduleBaseColumns.subgroup, r: currentRow });
         // console.log(cellValue);
         if (!cellValue)
             continue;
@@ -68,16 +71,28 @@ function parseDay(rowRange) {
         lesson.name = cellValue.split(/\s+/).join(' ');
         const nOfLesson = Math.floor(i / 2);
         // console.log('nOfLesson', lesson.nOfLesson);
-        lesson.type = getCellValue({ c: sheduleBase.typeOfLesson, r: currentRow });
-        lesson.classroom = getCellValue({ c: sheduleBase.classroom, r: currentRow });
+        lesson.type = getCellValue({ c: sheduleBaseColumns.typeOfLesson, r: currentRow });
+        lesson.classroom = getCellValue({ c: sheduleBaseColumns.classroom, r: currentRow });
         if (i % 2 === 0) {
-            day.odd.friday[nOfLesson] = lesson;
+            if (!day.odd.hasOwnProperty(dayName)) {
+                day.odd[dayName] = {};
+            }
+            if (!day.odd[dayName].hasOwnProperty(nOfLesson)) {
+                day.odd[dayName][nOfLesson] = {};
+            }
+            day.odd[dayName][nOfLesson] = lesson;
         }
         else {
-            day.even.friday[nOfLesson] = lesson;
+            if (!day.even.hasOwnProperty(dayName)) {
+                day.even[dayName] = {};
+            }
+            if (!day.even[dayName].hasOwnProperty(nOfLesson)) {
+                day.even[dayName][nOfLesson] = {};
+            }
+            day.even[dayName][nOfLesson] = lesson;
         }
     }
-    writeFile('out/result.json', day);
+    // writeFile('out/result.json', day);
     return day;
 }
 // получить значение в ячейке, даже если ячейка смежная
