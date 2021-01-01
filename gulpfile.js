@@ -95,5 +95,5 @@ gulp.task('prebuild', async function () {
 });
 
 // gulp.task('default', gulp.parallel('sass','browser-sync','watch','prebuild'));
-gulp.task('default', gulp.parallel('watch'));
+gulp.task('default', gulp.parallel('typescript', 'watch'));
 // gulp.task('build', gulp.parallel('prebuild'));

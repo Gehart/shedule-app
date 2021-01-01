@@ -1,6 +1,7 @@
 const xlsx_node = require('node-xlsx'), xlsx = require('xlsx'), fs = require('fs');
 const resourcesDir = 'resources/';
-const xlsFile = 'short_shedule.xlsx';
+// const xlsFile = 'short_shedule.xlsx';
+const xlsFile = 'univ_shedule.xls';
 const workbook = xlsx.readFile(resourcesDir + xlsFile, {
     raw: false,
     cellText: false,
@@ -8,49 +9,29 @@ const workbook = xlsx.readFile(resourcesDir + xlsFile, {
     cellStyles: false,
     cellDates: true
 });
+// объект с адресами основных колонок - времени занятий, группы, аудитории
 const sheduleBase = {
+    nOfSheet: 2,
     dayOfWeek: 0,
     nOfLesson: 1,
     timeOfLesson: 2,
     evenOdd: 3,
     group: {
-        "s": {
-            "c": 4,
-            "r": 0
-        },
-        "e": {
-            "c": 5,
-            "r": 0
-        }
+        "start": 12,
+        "end": 13
     },
-    subgroup: 4,
-    typeOfLesson: 6,
-    classroom: 7,
-    startRowOfSheet: '0',
-    endRowOfSheet: '14'
-    // dayOfWeek: 'A',
-    // nOfLesson: 'B',
-    // timeOfLesson: 'C',
-    // evenOdd: 'D',
-    // group: {
-    //     "s": {
-    //         "c": 4,
-    //         "r": 0
-    //     },
-    //     "e": {
-    //         "c": 5,
-    //         "r": 0
-    //     }
-    // },
-    // subgroup: 'F',
-    // typeOfLesson: 'G', 
-    // classroom: 'H',
+    subgroup: 13,
+    typeOfLesson: 14,
+    classroom: 15,
+    startRowOfSheet: 8,
+    endRowOfSheet: 90,
 };
-const firstSheetName = workbook.SheetNames[0];
-const workingSheet = workbook.Sheets[firstSheetName];
+const sheetName = workbook.SheetNames[sheduleBase.nOfSheet];
+const workingSheet = workbook.Sheets[sheetName];
 main();
 function main() {
-    const parsedDay = parseDay();
+    const parsedDay = parseDay({ start: 22, end: 35 });
+    // const dayRanges = findDaysRanges();
 }
 function writeFile(outputFile, object) {
     const wbSheet = JSON.stringify(object);
@@ -60,9 +41,15 @@ function writeFile(outputFile, object) {
         }
     });
 }
-function parseDay() {
-    const startRowOfDay = 1;
-    const endRowOfDay = 14;
+function findDaysRanges() {
+    const docMerges = workingSheet['!merges'];
+    console.log(docMerges);
+    return [];
+}
+// TODO: сделать нормальный тип возврата
+function parseDay(rowRange) {
+    const startRowOfDay = rowRange.start;
+    const endRowOfDay = rowRange.end;
     const day = {
         odd: {
             friday: []
@@ -91,18 +78,17 @@ function parseDay() {
         }
     }
     writeFile('out/result.json', day);
+    return day;
 }
 // получить значение в ячейке, даже если ячейка смежная
 function getCellValue(cellAddress) {
     const docMerges = workingSheet['!merges'];
     let cellValue = workingSheet[numberToCharAddress(cellAddress.c) + '' + (cellAddress.r + 1)];
     if (!!cellValue) {
-        // console.log('вариант по хорошему');
-        // console.log("type of cell", typeof(cellValue.v));
         return (cellValue.v + '').trim();
     }
     else {
-        // console.log('вариант по плохому');
+        // проверяем, является ли ячейка "частью" другой ячейки
         for (let merge of docMerges) {
             // если попадает в границы диапазона одного из !merges
             if ((cellAddress.c >= merge.s.c && cellAddress.c <= merge.e.c) &&
