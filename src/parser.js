@@ -28,16 +28,22 @@ const sheduleBaseColumns = {
 };
 const sheetName = workbook.SheetNames[sheduleBaseColumns.nOfSheet];
 const workingSheet = workbook.Sheets[sheetName];
+const dayNameOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 main();
 function main() {
-    const parsedDay = parseDay({ start: 22, end: 35 }, 'tuesday');
-    const anotherParsedDay = parseDay({ start: 79, end: 90 }, 'saturday');
-    // let parsedFile: Shedule = parsedDay;
-    // parsedFile.odd = Object.assign(parsedFile.odd, anotherParsedDay.odd); 
-    // parsedFile.even = Object.assign(parsedFile.even, anotherParsedDay.even); 
-    let parsedFile = Object.assign(parsedDay, anotherParsedDay);
-    writeFile('out/result.json', parsedFile);
-    // const dayRanges = findDaysRanges();
+    const dayRanges = findDaysRanges();
+    const parsedDays = dayRanges.map((el, i) => parseDay(el, dayNameOfWeek[i]));
+    const combined = joinParcedDays(parsedDays);
+    writeFile('out/result.json', combined);
+}
+// TODO: попробовать с иммутабельностью позже
+function joinParcedDays(parsedDays) {
+    let combined = { odd: {}, even: {} };
+    parsedDays.map(el => {
+        combined.odd = Object.assign(combined.odd, el.odd);
+        combined.even = Object.assign(combined.even, el.even);
+    });
+    return combined;
 }
 function writeFile(outputFile, object) {
     const wbSheet = JSON.stringify(object);
@@ -47,10 +53,17 @@ function writeFile(outputFile, object) {
         }
     });
 }
-function findDaysRanges() {
+function findDaysRanges(dayNameColumn = 0) {
     const docMerges = workingSheet['!merges'];
-    console.log(docMerges);
-    return [];
+    const dayMerges = docMerges.filter(el => el.s.c === dayNameColumn && el.e.c === dayNameColumn)
+        .map(el => {
+        return {
+            start: el.s.r,
+            end: el.e.r
+        };
+    })
+        .reverse();
+    return dayMerges;
 }
 // TODO: сделать нормальный тип возврата
 function parseDay(rowRange, dayName) {

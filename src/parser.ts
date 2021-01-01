@@ -52,53 +52,64 @@ const sheduleBaseColumns = {
 const sheetName = workbook.SheetNames[sheduleBaseColumns.nOfSheet];
 const workingSheet = workbook.Sheets[sheetName];
 
+const dayNameOfWeek = ['monday','tuesday','wednesday','thursday','friday','saturday'];
 main();
 function main() {
-    const parsedDay = parseDay({start: 22, end: 35}, 'tuesday');
-    const anotherParsedDay = parseDay({start: 79, end: 90}, 'saturday');
-    
-    // let parsedFile: Shedule = parsedDay;
-    // parsedFile.odd = Object.assign(parsedFile.odd, anotherParsedDay.odd); 
-    // parsedFile.even = Object.assign(parsedFile.even, anotherParsedDay.even); 
-    
-    let parsedFile: Shedule = Object.assign(parsedDay, anotherParsedDay);
-
-    writeFile('out/result.json', parsedFile);
-    // const dayRanges = findDaysRanges();
+    const dayRanges: RowRange[] = findDaysRanges();
+    const parsedDays = dayRanges.map((el, i) => parseDay(el, dayNameOfWeek[i]));
+    const combined = joinParcedDays(parsedDays);
+    writeFile('out/result.json', combined);
 }
 
-function writeFile(outputFile : string, object: Shedule) {
+// TODO: попробовать с иммутабельностью позже
+function joinParcedDays(parsedDays: Shedule[]) {
+    let combined: Shedule = {odd:{},even:{}};
+    parsedDays.map( el => {
+        combined.odd = Object.assign(combined.odd, el.odd);
+        combined.even = Object.assign(combined.even, el.even);
+    });
+    return combined;
+}
+
+function writeFile(outputFile : string, object: any) {
     const wbSheet = JSON.stringify(object); 
-    fs.writeFile(outputFile, wbSheet, 'utf8', (err) => {
+    fs.writeFile(outputFile, wbSheet, 'utf8', (err: Error) => {
         if (err) {
             throw err;
         }
     });
 }
 
-function findDaysRanges(): RowRange[] {
+function findDaysRanges(dayNameColumn: number = 0): RowRange[] {
     const docMerges = workingSheet['!merges'];
-    console.log(docMerges);
+    const dayMerges = docMerges.filter(el => el.s.c === dayNameColumn && el.e.c === dayNameColumn)
+        .map(el => { 
+            return <RowRange>{
+                start: el.s.r,
+                end: el.e.r
+            }
+        })
+        .reverse(); 
 
-    return [];
+    return dayMerges;
 }
 
 interface Shedule {
     odd: {
-        monday?: Lesson[],
-        tuesday?: Lesson[],
-        wednesday?: Lesson[],
-        thursday?: Lesson[],
-        friday?: Lesson[],
-        sunday?: Lesson[]
+        monday?,
+        tuesday?,
+        wednesday?,
+        thursday?,
+        friday?,
+        sunday?
     },
     even: {
-        monday?: Lesson[],
-        tuesday?: Lesson[],
-        wednesday?: Lesson[],
-        thursday?: Lesson[],
-        friday?: Lesson[],
-        sunday?: Lesson[]
+        monday?,
+        tuesday?,
+        wednesday?,
+        thursday?,
+        friday?,
+        sunday?
     }
 }
 
@@ -218,7 +229,7 @@ function getCellValue(cellAddress: CellAddress) : string {
     }
 }
 
-function numberToCharAddress(n) {
+function numberToCharAddress(n: number) {
     var ACode = 'A'.charCodeAt(0);
     var ZCode = 'Z'.charCodeAt(0);
     var len = ZCode - ACode + 1;
