@@ -1,8 +1,6 @@
 node_modules/
 package-lock.json
 .~lock.*
-*.json
-!tsconfig.json
 tmp/
 out/**/*
 !out/example.json
