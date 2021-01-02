@@ -4,4 +4,5 @@ package-lock.json
 tmp/
 out/**/*
 !out/example.json
+!out/raw.json
 .vscode/
