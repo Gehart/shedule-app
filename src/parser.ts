@@ -2,7 +2,6 @@ const xlsx_node = require('node-xlsx'),
       xlsx      = require('xlsx'),
       fs        = require('fs');
 
-// const xlsFile = 'short_shedule.xlsx';
 const resourcesDir = 'resources/';
 const xlsFile = 'univ_shedule.xls';
 const workbook = xlsx.readFile(resourcesDir + xlsFile, {
@@ -29,24 +28,6 @@ const baseColumns = {
     classroom: 15,
     startRowOfSheet: 8,
     endRowOfSheet: 90,
-
-    // dayOfWeek: 'A',
-    // nOfLesson: 'B',
-    // timeOfLesson: 'C',
-    // evenOdd: 'D',
-    // group: {
-    //     "s": {
-    //         "c": 4,
-    //         "r": 0
-    //     },
-    //     "e": {
-    //         "c": 5,
-    //         "r": 0
-    //     }
-    // },
-    // subgroup: 'F',
-    // typeOfLesson: 'G', 
-    // classroom: 'H',
 };
 
 const sheetName = workbook.SheetNames[baseColumns.nOfSheet];
@@ -130,7 +111,7 @@ interface ColumnRange {
     start: number,
     end: number
 }
-// TODO: рефакторинг этой фукции
+
 function parseDay(rowRange: RowRange, dayName: string): Shedule {
     const startRowOfDay = rowRange.start;
     const endRowOfDay = rowRange.end;
@@ -178,7 +159,7 @@ function getCommonLessonInfo(address: CellAddress): Lesson {
     return lesson;
 }
 
-// TODO: подумать над тем, чтобы сделать это красивее
+// TODO: подумать над тем, чтобы сделать это красивее. update: да, надо
 function addLessonToDay(day: Shedule, lesson: Lesson, dayName: string, index: number): Shedule {
     // создаем копию объекта
     let newDay: Shedule = JSON.parse(JSON.stringify(day));

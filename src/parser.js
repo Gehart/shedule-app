@@ -1,6 +1,5 @@
 "use strict";
 const xlsx_node = require('node-xlsx'), xlsx = require('xlsx'), fs = require('fs');
-// const xlsFile = 'short_shedule.xlsx';
 const resourcesDir = 'resources/';
 const xlsFile = 'univ_shedule.xls';
 const workbook = xlsx.readFile(resourcesDir + xlsFile, {
@@ -69,7 +68,6 @@ function Shedule() {
     this.odd = {};
     this.even = {};
 }
-// TODO: рефакторинг этой фукции
 function parseDay(rowRange, dayName) {
     const startRowOfDay = rowRange.start;
     const endRowOfDay = rowRange.end;
@@ -111,7 +109,7 @@ function getCommonLessonInfo(address) {
     lesson.classroom = getCellValue({ r: address.r, c: lessonRange.end + 2 });
     return lesson;
 }
-// TODO: подумать над тем, чтобы сделать это красивее
+// TODO: подумать над тем, чтобы сделать это красивее. update: да, надо
 function addLessonToDay(day, lesson, dayName, index) {
     // создаем копию объекта
     let newDay = JSON.parse(JSON.stringify(day));
