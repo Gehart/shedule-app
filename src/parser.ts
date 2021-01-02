@@ -12,6 +12,7 @@ const workbook = xlsx.readFile(resourcesDir + xlsFile, {
     cellDates: true
 });
 
+// TODO: находить все эти столбцы автоматически
 // объект с адресами основных колонок - времени занятий, группы, аудитории
 const baseColumns = {
     nOfSheet: 2,
@@ -19,6 +20,7 @@ const baseColumns = {
     nOfLesson: 1,
     timeOfLesson: 2,
     evenOdd: 3,
+    groupNameRow: 8,
     group: <ColumnRange>{
         "start": 12,
         "end": 13 
@@ -35,9 +37,16 @@ const workingSheet = workbook.Sheets[sheetName];
 
 const dayNameOfWeek = ['monday','tuesday','wednesday','thursday','friday','saturday'];
 
+// regex для имени группы
+// [а-яА-ЯёЁ]{2,7}\/[а-яА-ЯёЁ]*-[а-яА-ЯёЁ0-9-]*
+
 main();
 function main() {
     const dayRanges: RowRange[] = findDaysRanges();
+    // строка с названиями групп
+    baseColumns.groupNameRow = dayRanges[0].start - 1;
+    console.log(baseColumns.groupNameRow);
+    
     const parsedDays = dayRanges.map((el, i) => 
         parseDay(el, dayNameOfWeek[i]));
     
@@ -65,11 +74,6 @@ function writeFile(outputFile : string, object: any) {
 
 function findDaysRanges(dayNameColumn: number = 0): RowRange[] {
     const docMerges = workingSheet['!merges'];
-    dayNameColumn = findDayNameColumn(docMerges);
-    
-    if (dayNameColumn === null) {
-        console.error('Не нашли стролбец с названиями дней'); 
-    }
 
     const dayMerges = docMerges.filter(el => el.s.c === dayNameColumn && el.e.c === dayNameColumn)
         .map(el => { 
