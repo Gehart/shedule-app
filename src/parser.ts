@@ -59,7 +59,9 @@ function main() {
     const dayRanges: RowRange[] = findDaysRanges();
     const parsedDays = dayRanges.map((el, i) => 
         parseDay(el, dayNameOfWeek[i]));
+    
     const combined = joinParcedDays(parsedDays);
+    
     writeFile('out/result.json', combined);
 }
 
@@ -139,17 +141,41 @@ function parseDay(rowRange: RowRange, dayName: string): Shedule {
         
         const cellValue = getCellValue({c: baseColumns.subgroup, r: currentRow});
         // если ячейка пустая, пропускаем
-        if (!cellValue) continue; 
+        if (typeof cellValue === undefined || !cellValue) continue; 
 
-        let lesson: Lesson;
+        let lesson: Lesson = {};
         lesson.name = cellValue;
         lesson.type = getCellValue({c: baseColumns.typeOfLesson, r: currentRow});
         lesson.classroom = getCellValue({c: baseColumns.classroom, r: currentRow});
 
+        // проверяем на общие пары на потоке.
+        if (lesson.name === lesson.type) {
+            lesson = getCommonLessonInfo({c: baseColumns.subgroup, r: currentRow});
+        }
+        
         day = addLessonToDay(day, lesson, dayName, i);
     }
-
     return day;
+}
+
+function getCommonLessonInfo(address: CellAddress): Lesson {
+    let lesson: Lesson = {};
+    const docMerges = workingSheet['!merges'];
+    let cellValue = workingSheet[numberToCharAddress(address.c) + '' + (address.r + 1)];
+    let lessonRange: ColumnRange;
+    // найдем диапазон
+    for (let merge of docMerges) {
+        // если попадает в границы диапазона одного из !merges
+        if ((address.c >= merge.s.c && address.c <= merge.e.c) &&
+            (address.r >= merge.s.r && address.r <= merge.e.r)) {
+            // cellValue = workingSheet[numberToCharAddress(merge.s.c) + '' + (merge.s.r + 1)];
+            lessonRange = {start: merge.s.c, end: merge.e.c};
+        }
+    }
+    lesson.name = getCellValue(address);
+    lesson.type = getCellValue({r: address.r, c: lessonRange.end + 1});
+    lesson.classroom = getCellValue({r: address.r, c: lessonRange.end + 2});
+    return lesson;
 }
 
 // TODO: подумать над тем, чтобы сделать это красивее
@@ -215,7 +241,7 @@ function getCellValue(cellAddress: CellAddress) : string {
         if (!cellValue) {
             return '';
         }
-        else {
+        else {            
             return (cellValue.v + '').trim().split(/\s+/).join(' ');
         }
     }

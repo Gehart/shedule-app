@@ -1,3 +1,4 @@
+"use strict";
 const xlsx_node = require('node-xlsx'), xlsx = require('xlsx'), fs = require('fs');
 // const xlsFile = 'short_shedule.xlsx';
 const resourcesDir = 'resources/';
@@ -10,7 +11,7 @@ const workbook = xlsx.readFile(resourcesDir + xlsFile, {
     cellDates: true
 });
 // объект с адресами основных колонок - времени занятий, группы, аудитории
-const sheduleBaseColumns = {
+const baseColumns = {
     nOfSheet: 2,
     dayOfWeek: 0,
     nOfLesson: 1,
@@ -26,7 +27,7 @@ const sheduleBaseColumns = {
     startRowOfSheet: 8,
     endRowOfSheet: 90,
 };
-const sheetName = workbook.SheetNames[sheduleBaseColumns.nOfSheet];
+const sheetName = workbook.SheetNames[baseColumns.nOfSheet];
 const workingSheet = workbook.Sheets[sheetName];
 const dayNameOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 main();
@@ -68,49 +69,82 @@ function Shedule() {
     this.odd = {};
     this.even = {};
 }
-// TODO: сделать нормальный тип возврата
+// TODO: рефакторинг этой фукции
 function parseDay(rowRange, dayName) {
     const startRowOfDay = rowRange.start;
     const endRowOfDay = rowRange.end;
-    const day = new Shedule();
+    let day = new Shedule();
     for (let i = 0; i < endRowOfDay - startRowOfDay + 1; i++) {
         const currentRow = i + startRowOfDay;
-        const cellValue = getCellValue({ c: sheduleBaseColumns.subgroup, r: currentRow });
-        if (!cellValue)
+        const cellValue = getCellValue({ c: baseColumns.subgroup, r: currentRow });
+        // если ячейка пустая, пропускаем
+        if (typeof cellValue === undefined || !cellValue)
             continue;
-        const lesson = {};
-        lesson.name = cellValue.split(/\s+/).join(' ');
-        const nOfLesson = Math.floor(i / 2);
-        lesson.type = getCellValue({ c: sheduleBaseColumns.typeOfLesson, r: currentRow });
-        lesson.classroom = getCellValue({ c: sheduleBaseColumns.classroom, r: currentRow });
-        if (i % 2 === 0) {
-            if (!day.odd.hasOwnProperty(dayName)) {
-                day.odd[dayName] = {};
-            }
-            if (!day.odd[dayName].hasOwnProperty(nOfLesson)) {
-                day.odd[dayName][nOfLesson] = {};
-            }
-            day.odd[dayName][nOfLesson] = lesson;
+        let lesson = {};
+        lesson.name = cellValue;
+        lesson.type = getCellValue({ c: baseColumns.typeOfLesson, r: currentRow });
+        lesson.classroom = getCellValue({ c: baseColumns.classroom, r: currentRow });
+        // проверяем на общие пары на потоке.
+        if (lesson.name === lesson.type) {
+            lesson = getCommonLessonInfo({ c: baseColumns.subgroup, r: currentRow });
         }
-        else {
-            if (!day.even.hasOwnProperty(dayName)) {
-                day.even[dayName] = {};
-            }
-            if (!day.even[dayName].hasOwnProperty(nOfLesson)) {
-                day.even[dayName][nOfLesson] = {};
-            }
-            day.even[dayName][nOfLesson] = lesson;
+        day = addLessonToDay(day, lesson, dayName, i);
+    }
+    return day;
+}
+function getCommonLessonInfo(address) {
+    let lesson = {};
+    const docMerges = workingSheet['!merges'];
+    let cellValue = workingSheet[numberToCharAddress(address.c) + '' + (address.r + 1)];
+    let lessonRange;
+    // найдем диапазон
+    for (let merge of docMerges) {
+        // если попадает в границы диапазона одного из !merges
+        if ((address.c >= merge.s.c && address.c <= merge.e.c) &&
+            (address.r >= merge.s.r && address.r <= merge.e.r)) {
+            // cellValue = workingSheet[numberToCharAddress(merge.s.c) + '' + (merge.s.r + 1)];
+            lessonRange = { start: merge.s.c, end: merge.e.c };
         }
     }
-    // writeFile('out/result.json', day);
-    return day;
+    lesson.name = getCellValue(address);
+    lesson.type = getCellValue({ r: address.r, c: lessonRange.end + 1 });
+    lesson.classroom = getCellValue({ r: address.r, c: lessonRange.end + 2 });
+    return lesson;
+}
+// TODO: подумать над тем, чтобы сделать это красивее
+function addLessonToDay(day, lesson, dayName, index) {
+    // создаем копию объекта
+    let newDay = JSON.parse(JSON.stringify(day));
+    const nOfLesson = Math.floor(index / 2);
+    // присваивание свойств новому объекту. При необходимости свойства создаются
+    if (index % 2 === 0) {
+        if (!newDay.odd.hasOwnProperty(dayName)) {
+            newDay.odd[dayName] = {};
+        }
+        if (!newDay.odd[dayName].hasOwnProperty(nOfLesson)) {
+            newDay.odd[dayName][nOfLesson] = {};
+        }
+        newDay.odd[dayName][nOfLesson] = lesson;
+    }
+    else {
+        if (!newDay.even.hasOwnProperty(dayName)) {
+            newDay.even[dayName] = {};
+        }
+        if (!newDay.even[dayName].hasOwnProperty(nOfLesson)) {
+            newDay.even[dayName][nOfLesson] = {};
+        }
+        newDay.even[dayName][nOfLesson] = lesson;
+    }
+    return newDay;
 }
 // получить значение в ячейке, даже если ячейка смежная
 function getCellValue(cellAddress) {
     const docMerges = workingSheet['!merges'];
     let cellValue = workingSheet[numberToCharAddress(cellAddress.c) + '' + (cellAddress.r + 1)];
+    // если в ячейке есть значение
     if (typeof cellValue != undefined && !!cellValue) {
-        return (cellValue.v + '').trim();
+        // возвращаем значение, избавляясь от пробелов
+        return (cellValue.v + '').trim().split(/\s+/).join(' ');
     }
     else {
         // проверяем, является ли ячейка "частью" другой ячейки
@@ -118,8 +152,6 @@ function getCellValue(cellAddress) {
             // если попадает в границы диапазона одного из !merges
             if ((cellAddress.c >= merge.s.c && cellAddress.c <= merge.e.c) &&
                 (cellAddress.r >= merge.s.r && cellAddress.r <= merge.e.r)) {
-                // console.log('merges=',merge);
-                // console.log(numberToCharAddress(merge.s.c) + '' + (merge.s.r + 1));
                 cellValue = workingSheet[numberToCharAddress(merge.s.c) + '' + (merge.s.r + 1)];
             }
         }
@@ -127,24 +159,21 @@ function getCellValue(cellAddress) {
             return '';
         }
         else {
-            return (cellValue.v + '').trim();
+            return (cellValue.v + '').trim().split(/\s+/).join(' ');
         }
     }
 }
 function numberToCharAddress(n) {
-    var ACode = 'A'.charCodeAt(0);
-    var ZCode = 'Z'.charCodeAt(0);
-    var len = ZCode - ACode + 1;
-    var charAddress = "";
+    const ACode = 'A'.charCodeAt(0);
+    const ZCode = 'Z'.charCodeAt(0);
+    const len = ZCode - ACode + 1;
+    let charAddress = "";
     while (n >= 0) {
         charAddress = String.fromCharCode(n % len + ACode) + charAddress;
         n = Math.floor(n / len) - 1;
     }
     return charAddress;
 }
-// // Parse a file
-// const workSheetsFromFile = xlsx_node.parse(`${__dirname}/${xlsFile}`);
-// const jsonSheet = JSON.stringify(workSheetsFromFile[0]);
 /*
 найти столбец подгруппы
 идти сверху вниз, проверяя на !merges
