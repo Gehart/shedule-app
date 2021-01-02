@@ -53,6 +53,10 @@ function writeFile(outputFile, object) {
 }
 function findDaysRanges(dayNameColumn = 0) {
     const docMerges = workingSheet['!merges'];
+    dayNameColumn = findDayNameColumn(docMerges);
+    if (dayNameColumn === null) {
+        console.error('Не нашли стролбец с названиями дней');
+    }
     const dayMerges = docMerges.filter(el => el.s.c === dayNameColumn && el.e.c === dayNameColumn)
         .map(el => {
         return {
@@ -60,8 +64,20 @@ function findDaysRanges(dayNameColumn = 0) {
             end: el.e.r
         };
     })
-        .reverse();
+        .reverse(); // reverse, так как merges считываются в обратном порядке.
     return dayMerges;
+}
+function findDayNameColumn(docMerges) {
+    for (let nColumn = 0; nColumn < 5; nColumn++) {
+        let hasMergedCells = docMerges.filter(el => el.s.c === nColumn && el.e.c === nColumn)
+            .findIndex(el => {
+            return (el.e.r - el.s.r) >= 7;
+        });
+        if (hasMergedCells !== -1) {
+            return nColumn;
+        }
+    }
+    return null;
 }
 // TODO: узнать про нормальный способ конструктора (с указанием типа для строгого typescript)
 function Shedule() {

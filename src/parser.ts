@@ -65,16 +65,36 @@ function writeFile(outputFile : string, object: any) {
 
 function findDaysRanges(dayNameColumn: number = 0): RowRange[] {
     const docMerges = workingSheet['!merges'];
+    dayNameColumn = findDayNameColumn(docMerges);
+    
+    if (dayNameColumn === null) {
+        console.error('Не нашли стролбец с названиями дней'); 
+    }
+
     const dayMerges = docMerges.filter(el => el.s.c === dayNameColumn && el.e.c === dayNameColumn)
         .map(el => { 
             return <RowRange>{
                 start: el.s.r,
-                end: el.e.r
+                end:   el.e.r
             }
         })
-        .reverse(); 
-
+        .reverse(); // reverse, так как merges считываются в обратном порядке.
+    
     return dayMerges;
+}
+
+function findDayNameColumn(docMerges): number | null {
+    for(let nColumn = 0; nColumn < 5; nColumn++) {
+        let hasMergedCells = docMerges.filter(el => el.s.c === nColumn && el.e.c === nColumn)
+            .findIndex(el => {
+                return (el.e.r - el.s.r) >= 7;
+            });
+
+        if (hasMergedCells !== -1) {
+            return nColumn;
+        }
+    }
+    return null;
 }
 
 interface Shedule {
