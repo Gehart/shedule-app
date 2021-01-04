@@ -13,7 +13,7 @@ const workbook = xlsx.readFile(resourcesDir + xlsFile, {
 // объект с адресами основных колонок - времени занятий, группы, аудитории
 const baseInfoOfSheet = {
     nOfSheet: 2,
-    dayOfWeek: 0,
+    dayName: 0,
     nOfLesson: 1,
     timeOfLesson: 2,
     evenOdd: 3,
@@ -36,22 +36,28 @@ const dayNameOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', '
 // [а-яА-ЯёЁ]{2,7}\/[а-яА-ЯёЁ]*-[а-яА-ЯёЁ0-9-]*
 main();
 function main() {
-    const dayRanges = findDaysRanges();
-    // строка с названиями групп
-    baseInfoOfSheet.groupNameRow = dayRanges[0].start - 1;
-    baseInfoOfSheet.group = findGroupColumns('ИС/б-18-3-о');
-    const parsedDays = dayRanges.map((el, i) => parseDay(el, dayNameOfWeek[i]));
-    const combined = joinParcedDays(parsedDays);
-    writeFile('out/result.json', combined);
+    const parsedShedule = parse('ИС/б-18-2-о', 0);
+    writeFile('out/result.json', parsedShedule);
 }
-function findGroupColumns(groupName) {
-    const lastColumn = findLastColumnInSheet();
-    const rowValues = getValuesFromColumnRangeInRow(baseInfoOfSheet.groupNameRow, { start: 0, end: lastColumn });
-    const groupNameRegex = new RegExp('[а-яА-ЯёЁ]{2,7}\/[а-яА-ЯёЁ]*-[а-яА-ЯёЁ0-9-]*');
-    // const groupNames = rowValues.filter(el => groupNameRegex.test(el.value));
+function parse(groupName, subgroup) {
+    baseInfoOfSheet.dayName = findDayNameColumn();
+    const dayRanges = findDaysRanges();
+    // строка с названиями групп. Обычно распологается на строку выше, чем названия дней недели.
+    baseInfoOfSheet.groupNameRow = dayRanges[0].start - 1;
+    baseInfoOfSheet.group = findGroupColumnRange('ИС/б-18-3-о');
+    baseInfoOfSheet.subgroup = (subgroup === 0) ? baseInfoOfSheet.group.start : baseInfoOfSheet.group.end;
+    const parsedDays = dayRanges.map((el, i) => parseDay(el, dayNameOfWeek[i]));
+    return joinParcedDays(parsedDays);
+}
+function findGroupColumnRange(groupName) {
+    const lastColumnInSheet = findLastColumnInSheet();
+    const rowValues = getValuesFromColumnRangeInRow(baseInfoOfSheet.groupNameRow, { start: 0, end: lastColumnInSheet });
     const group = rowValues.find(el => el.value === groupName);
-    console.log(group);
-    return { start: 0, end: 10 };
+    const groupMerge = getMergeAroundCell({ r: baseInfoOfSheet.groupNameRow, c: group.column });
+    return {
+        start: groupMerge.s.c,
+        end: groupMerge.e.c
+    };
 }
 function findLastColumnInSheet() {
     const rangeInSheet = workingSheet["!ref"];
@@ -98,9 +104,9 @@ function findDaysRanges(dayNameColumn = 0) {
         .reverse(); // reverse, так как merges считываются в обратном порядке.
     return dayMerges;
 }
-function findDayNameColumn(docMerges) {
+function findDayNameColumn() {
     for (let nColumn = 0; nColumn < 5; nColumn++) {
-        let hasMergedCells = docMerges.filter(el => el.s.c === nColumn && el.e.c === nColumn)
+        let hasMergedCells = mergesInSheet.filter(el => el.s.c === nColumn && el.e.c === nColumn)
             .findIndex(el => {
             return (el.e.r - el.s.r) >= 7;
         });
@@ -127,8 +133,15 @@ function parseDay(rowRange, dayName) {
             continue;
         let lesson = {};
         lesson.name = cellValue;
-        lesson.type = getCellValue({ c: baseInfoOfSheet.typeOfLesson, r: currentRow });
-        lesson.classroom = getCellValue({ c: baseInfoOfSheet.classroom, r: currentRow });
+        if (!lesson.name.includes("ВОЕННАЯ КАФЕДРА")) {
+            lesson.type = getCellValue({ c: baseInfoOfSheet.typeOfLesson, r: currentRow });
+            lesson.classroom = getCellValue({ c: baseInfoOfSheet.classroom, r: currentRow });
+        }
+        else {
+            // нет смысла полностью обрабатывать дни военной кафедры.
+            day = addLessonToDay(day, lesson, dayName, i);
+            return day;
+        }
         // проверяем на общие пары на потоке.
         if (lesson.name === lesson.type) {
             lesson = getCommonLessonInfo({ c: baseInfoOfSheet.subgroup, r: currentRow });
