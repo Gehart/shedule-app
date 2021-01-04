@@ -29,15 +29,15 @@ const BaseInfoOfSheet = {
 
 main();
 function main() {
-    // console.log('sheet names = ', workbook.SheetNames);
     const resourcesDir = 'resources/';
     const xlsFile = 'univ_shedule.xls';
-
-    // setBaseBookInfo(course);
-
-    // const parsedShedule = null;
-    const parsedShedule = parse(resourcesDir + xlsFile, 3, 'ИС/б-18-2-о', 0);
-    writeFile('out/result.json', parsedShedule);
+    try {
+        const parsedShedule = parse(resourcesDir + xlsFile, 2, 'ИС/б-19-2о', 0);
+        writeFile('out/result.json', parsedShedule);
+    }
+    catch(e){
+        console.error(e);
+    }
 }
 
 function readASheduleFile(fileName: string) {
@@ -52,15 +52,14 @@ function readASheduleFile(fileName: string) {
 
 function parse(fileName: string, course: number, groupName: string, subgroup: 0 | 1) {
     BaseBookInfo.workbook = readASheduleFile(fileName);
-    BaseBookInfo.sheetName = BaseBookInfo.workbook.SheetNames[BaseInfoOfSheet.nOfSheet];
-    BaseBookInfo.workingSheet = BaseBookInfo.workbook.Sheets[BaseBookInfo.sheetName];
-    BaseBookInfo.mergesInSheet = BaseBookInfo.workingSheet['!merges'];
+    setBaseBookInfo(course);
 
     BaseInfoOfSheet.dayName = findDayNameColumn();
-    const dayRanges: RowRange[] = findDaysRanges();
+    const dayRanges: RowRange[] = findDaysRanges(BaseInfoOfSheet.dayName);
     // строка с названиями групп. Обычно распологается на строку выше, чем названия дней недели.
     BaseInfoOfSheet.groupNameRow = dayRanges[0].start - 1;
-    BaseInfoOfSheet.group = findGroupColumnRange('ИС/б-18-3-о');
+    
+    BaseInfoOfSheet.group = findGroupColumnRange(groupName);
     BaseInfoOfSheet.subgroup = (subgroup === 0) ? BaseInfoOfSheet.group.start : BaseInfoOfSheet.group.end;
 
     const dayNameOfWeek = ['monday','tuesday','wednesday','thursday','friday','saturday'];
@@ -71,12 +70,20 @@ function parse(fileName: string, course: number, groupName: string, subgroup: 0 
 
 function setBaseBookInfo(course: number) {
     BaseBookInfo.sheetName = BaseBookInfo.workbook.SheetNames.find(el => el.includes(course + 'к'));
+    BaseBookInfo.workingSheet = BaseBookInfo.workbook.Sheets[BaseBookInfo.sheetName];
+    BaseBookInfo.mergesInSheet = BaseBookInfo.workingSheet['!merges'];
 }
 
 function findGroupColumnRange(groupName: string): ColumnRange {
     const lastColumnInSheet = findLastColumnInSheet();
     const rowValues = getValuesFromColumnRangeInRow(BaseInfoOfSheet.groupNameRow, {start: 0, end: lastColumnInSheet});
+    
     const group = rowValues.find(el => el.value === groupName);
+    
+    if (typeof group === "undefined") {
+        throw new Error("Не нашли группy "+groupName+" на листе \""+ BaseBookInfo.sheetName + "\"");
+    }
+
     const groupMerge = getMergeAroundCell({r: BaseInfoOfSheet.groupNameRow, c: group.column});
     return {
         start: groupMerge.s.c, 
@@ -101,7 +108,7 @@ function getValuesFromColumnRangeInRow(row: number, range: ColumnRange) {
     for(let i = range.start; i < range.end; i++) {
         rowValues.push({column: i, value: getStrictCellValue({r: row, c: i})});
     }
-    // console.log("rowValues", rowValues.filter(el => el.value));
+
     return rowValues.filter(el => el.value);
 }
 
@@ -122,9 +129,12 @@ function writeFile(outputFile : string, object: any) {
     });
 }
 
-function findDaysRanges(dayNameColumn: number = 0): RowRange[] {
-    const docMerges = BaseBookInfo.workingSheet['!merges'];
+function compareRowRange(a: RowRange, b: RowRange) {
+    return a.start >= b.start;
+}
 
+function findDaysRanges(dayNameColumn: number): RowRange[] {
+    const docMerges = BaseBookInfo.workingSheet['!merges'];
     const dayMerges = docMerges.filter(el => el.s.c === dayNameColumn && el.e.c === dayNameColumn)
         .map(el => { 
             return <RowRange>{
@@ -132,8 +142,8 @@ function findDaysRanges(dayNameColumn: number = 0): RowRange[] {
                 end:   el.e.r
             }
         })
-        .reverse(); // reverse, так как merges считываются в обратном порядке.
-    
+        .sort(compareRowRange); // диапазоны иногда приходят в неправильном порядке
+        
     return dayMerges;
 }
 

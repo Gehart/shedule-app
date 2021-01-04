@@ -23,13 +23,15 @@ const BaseInfoOfSheet = {
 };
 main();
 function main() {
-    // console.log('sheet names = ', workbook.SheetNames);
     const resourcesDir = 'resources/';
     const xlsFile = 'univ_shedule.xls';
-    // setBaseBookInfo(course);
-    // const parsedShedule = null;
-    const parsedShedule = parse(resourcesDir + xlsFile, 3, 'ИС/б-18-2-о', 0);
-    writeFile('out/result.json', parsedShedule);
+    try {
+        const parsedShedule = parse(resourcesDir + xlsFile, 2, 'ИС/б-19-2о', 0);
+        writeFile('out/result.json', parsedShedule);
+    }
+    catch (e) {
+        console.error(e);
+    }
 }
 function readASheduleFile(fileName) {
     return xlsx.readFile(fileName, {
@@ -42,14 +44,12 @@ function readASheduleFile(fileName) {
 }
 function parse(fileName, course, groupName, subgroup) {
     BaseBookInfo.workbook = readASheduleFile(fileName);
-    BaseBookInfo.sheetName = BaseBookInfo.workbook.SheetNames[BaseInfoOfSheet.nOfSheet];
-    BaseBookInfo.workingSheet = BaseBookInfo.workbook.Sheets[BaseBookInfo.sheetName];
-    BaseBookInfo.mergesInSheet = BaseBookInfo.workingSheet['!merges'];
+    setBaseBookInfo(course);
     BaseInfoOfSheet.dayName = findDayNameColumn();
-    const dayRanges = findDaysRanges();
+    const dayRanges = findDaysRanges(BaseInfoOfSheet.dayName);
     // строка с названиями групп. Обычно распологается на строку выше, чем названия дней недели.
     BaseInfoOfSheet.groupNameRow = dayRanges[0].start - 1;
-    BaseInfoOfSheet.group = findGroupColumnRange('ИС/б-18-3-о');
+    BaseInfoOfSheet.group = findGroupColumnRange(groupName);
     BaseInfoOfSheet.subgroup = (subgroup === 0) ? BaseInfoOfSheet.group.start : BaseInfoOfSheet.group.end;
     const dayNameOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const parsedDays = dayRanges.map((el, i) => parseDay(el, dayNameOfWeek[i]));
@@ -57,11 +57,16 @@ function parse(fileName, course, groupName, subgroup) {
 }
 function setBaseBookInfo(course) {
     BaseBookInfo.sheetName = BaseBookInfo.workbook.SheetNames.find(el => el.includes(course + 'к'));
+    BaseBookInfo.workingSheet = BaseBookInfo.workbook.Sheets[BaseBookInfo.sheetName];
+    BaseBookInfo.mergesInSheet = BaseBookInfo.workingSheet['!merges'];
 }
 function findGroupColumnRange(groupName) {
     const lastColumnInSheet = findLastColumnInSheet();
     const rowValues = getValuesFromColumnRangeInRow(BaseInfoOfSheet.groupNameRow, { start: 0, end: lastColumnInSheet });
     const group = rowValues.find(el => el.value === groupName);
+    if (typeof group === "undefined") {
+        throw new Error("Не нашли группy " + groupName + " на листе \"" + BaseBookInfo.sheetName + "\"");
+    }
     const groupMerge = getMergeAroundCell({ r: BaseInfoOfSheet.groupNameRow, c: group.column });
     return {
         start: groupMerge.s.c,
@@ -83,7 +88,6 @@ function getValuesFromColumnRangeInRow(row, range) {
     for (let i = range.start; i < range.end; i++) {
         rowValues.push({ column: i, value: getStrictCellValue({ r: row, c: i }) });
     }
-    // console.log("rowValues", rowValues.filter(el => el.value));
     return rowValues.filter(el => el.value);
 }
 function joinParcedDays(parsedDays) {
@@ -101,7 +105,10 @@ function writeFile(outputFile, object) {
         }
     });
 }
-function findDaysRanges(dayNameColumn = 0) {
+function compareRowRange(a, b) {
+    return a.start >= b.start;
+}
+function findDaysRanges(dayNameColumn) {
     const docMerges = BaseBookInfo.workingSheet['!merges'];
     const dayMerges = docMerges.filter(el => el.s.c === dayNameColumn && el.e.c === dayNameColumn)
         .map(el => {
@@ -110,7 +117,7 @@ function findDaysRanges(dayNameColumn = 0) {
             end: el.e.r
         };
     })
-        .reverse(); // reverse, так как merges считываются в обратном порядке.
+        .sort(compareRowRange); // диапазоны иногда приходят в неправильном порядке
     return dayMerges;
 }
 function findDayNameColumn() {
