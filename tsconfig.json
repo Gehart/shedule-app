@@ -4,7 +4,7 @@
         "strictFunctionTypes": true,
         "alwaysStrict": true,
         // "noImplicitAny": true,
-        "target": "es2017",
+        "target": "es2016",
     },
-    "exclude": ["node_modules"]
+    "exclude": ["node_modules/", ".git/"]
 }

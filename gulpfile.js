@@ -69,7 +69,7 @@ gulp.task('html', function () {
 // });
 
 gulp.task('watch', function () {
-    gulp.watch('**/*.ts', gulp.parallel('typescript'));
+    gulp.watch('./src/**/*.ts', gulp.parallel('typescript'));
 });
 
 gulp.task('prebuild', async function () {

@@ -11,7 +11,7 @@ const workbook = xlsx.readFile(resourcesDir + xlsFile, {
 });
 // TODO: находить все эти столбцы автоматически
 // объект с адресами основных колонок - времени занятий, группы, аудитории
-const baseColumns = {
+const baseInfoOfSheet = {
     nOfSheet: 2,
     dayOfWeek: 0,
     nOfLesson: 1,
@@ -28,8 +28,9 @@ const baseColumns = {
     startRowOfSheet: 8,
     endRowOfSheet: 90,
 };
-const sheetName = workbook.SheetNames[baseColumns.nOfSheet];
+const sheetName = workbook.SheetNames[baseInfoOfSheet.nOfSheet];
 const workingSheet = workbook.Sheets[sheetName];
+const mergesInSheet = workingSheet['!merges'];
 const dayNameOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 // regex для имени группы
 // [а-яА-ЯёЁ]{2,7}\/[а-яА-ЯёЁ]*-[а-яА-ЯёЁ0-9-]*
@@ -37,11 +38,36 @@ main();
 function main() {
     const dayRanges = findDaysRanges();
     // строка с названиями групп
-    baseColumns.groupNameRow = dayRanges[0].start - 1;
-    console.log(baseColumns.groupNameRow);
+    baseInfoOfSheet.groupNameRow = dayRanges[0].start - 1;
+    baseInfoOfSheet.group = findGroupColumns();
     const parsedDays = dayRanges.map((el, i) => parseDay(el, dayNameOfWeek[i]));
     const combined = joinParcedDays(parsedDays);
     writeFile('out/result.json', combined);
+}
+function findGroupColumns() {
+    const rangeInSheet = workingSheet["!ref"];
+    // const lastCell = rangeInSheet.split(':')[1];
+    const lastColumnInLetters = rangeInSheet
+        .split(':')[1] // последняя ячейка
+        .split('')
+        .filter(el => /[A-Ra-r]/.test(el)) // отделяем буквы (адрес колонки) от чисел
+        .join('');
+    // TODO: найти последнюю колонку и научить переводить буквы в число, а потом найти, наконец, группу
+    const lastColumn = charToNumberAddress(lastColumnInLetters);
+    const rowValues = getValuesFromColumnRangeInRow(baseInfoOfSheet.groupNameRow, { start: 0, end: lastColumn });
+    return { start: 0, end: 10 };
+}
+function getValuesFromColumnRangeInRow(row, range) {
+    // TODO: получить массив мерджев в строке
+    for (let merge of mergesInSheet) {
+        if (row === merge.s.c === merge.e.c) {
+        }
+    }
+    console.log('row', row);
+    const rowMerges = mergesInSheet.filter(merge => row === merge.s.r && row === merge.e.r);
+    console.log("rowMerges", rowMerges);
+    // (cellAddress.r >= merge.s.r && cellAddress.r <= merge.e.r)) 
+    // TODO: в каждом из них взять значение
 }
 function joinParcedDays(parsedDays) {
     return parsedDays.reduce((combined, current) => {
@@ -93,17 +119,17 @@ function parseDay(rowRange, dayName) {
     let day = new Shedule();
     for (let i = 0; i < endRowOfDay - startRowOfDay + 1; i++) {
         const currentRow = i + startRowOfDay;
-        const cellValue = getCellValue({ c: baseColumns.subgroup, r: currentRow });
+        const cellValue = getCellValue({ c: baseInfoOfSheet.subgroup, r: currentRow });
         // если ячейка пустая, пропускаем
         if (typeof cellValue === undefined || !cellValue)
             continue;
         let lesson = {};
         lesson.name = cellValue;
-        lesson.type = getCellValue({ c: baseColumns.typeOfLesson, r: currentRow });
-        lesson.classroom = getCellValue({ c: baseColumns.classroom, r: currentRow });
+        lesson.type = getCellValue({ c: baseInfoOfSheet.typeOfLesson, r: currentRow });
+        lesson.classroom = getCellValue({ c: baseInfoOfSheet.classroom, r: currentRow });
         // проверяем на общие пары на потоке.
         if (lesson.name === lesson.type) {
-            lesson = getCommonLessonInfo({ c: baseColumns.subgroup, r: currentRow });
+            lesson = getCommonLessonInfo({ c: baseInfoOfSheet.subgroup, r: currentRow });
         }
         day = addLessonToDay(day, lesson, dayName, i);
     }
@@ -190,6 +216,18 @@ function numberToCharAddress(n) {
         n = Math.floor(n / len) - 1;
     }
     return charAddress;
+}
+// преобразует адресс вида 'AA' в адрес 25
+function charToNumberAddress(charAddress) {
+    const alphabetLength = 26;
+    const numberAdr = charAddress.toUpperCase().split('')
+        .map(el => {
+        return el.charCodeAt(0) - 'A'.charCodeAt(0);
+    })
+        .reduce((prev, curr, ind, array) => {
+        return prev + ((curr + 1) * Math.pow(alphabetLength, array.length - 1 - ind));
+    }, 0);
+    return numberAdr - 1;
 }
 /*
 найти столбец подгруппы
