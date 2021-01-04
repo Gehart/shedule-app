@@ -1,22 +1,15 @@
 "use strict";
 const xlsx_node = require('node-xlsx'), xlsx = require('xlsx'), fs = require('fs');
-const resourcesDir = 'resources/';
-const xlsFile = 'univ_shedule.xls';
-const workbook = xlsx.readFile(resourcesDir + xlsFile, {
-    raw: false,
-    cellText: false,
-    celHTML: false,
-    cellStyles: false,
-    cellDates: true
-});
-// TODO: находить все эти столбцы автоматически
+const BaseBookInfo = {
+    workbook: {},
+    sheetName: '',
+    workingSheet: {},
+    mergesInSheet: {}
+};
 // объект с адресами основных колонок - времени занятий, группы, аудитории
-const baseInfoOfSheet = {
+const BaseInfoOfSheet = {
     nOfSheet: 2,
     dayName: 0,
-    nOfLesson: 1,
-    timeOfLesson: 2,
-    evenOdd: 3,
     groupNameRow: 8,
     group: {
         "start": 12,
@@ -25,42 +18,58 @@ const baseInfoOfSheet = {
     subgroup: 13,
     typeOfLesson: 14,
     classroom: 15,
-    startRowOfSheet: 8,
+    startRowOfSheet: -1,
     endRowOfSheet: 90,
 };
-const sheetName = workbook.SheetNames[baseInfoOfSheet.nOfSheet];
-const workingSheet = workbook.Sheets[sheetName];
-const mergesInSheet = workingSheet['!merges'];
-const dayNameOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-// regex для имени группы
-// [а-яА-ЯёЁ]{2,7}\/[а-яА-ЯёЁ]*-[а-яА-ЯёЁ0-9-]*
 main();
 function main() {
-    const parsedShedule = parse('ИС/б-18-2-о', 0);
+    // console.log('sheet names = ', workbook.SheetNames);
+    const resourcesDir = 'resources/';
+    const xlsFile = 'univ_shedule.xls';
+    // setBaseBookInfo(course);
+    // const parsedShedule = null;
+    const parsedShedule = parse(resourcesDir + xlsFile, 3, 'ИС/б-18-2-о', 0);
     writeFile('out/result.json', parsedShedule);
 }
-function parse(groupName, subgroup) {
-    baseInfoOfSheet.dayName = findDayNameColumn();
+function readASheduleFile(fileName) {
+    return xlsx.readFile(fileName, {
+        raw: false,
+        cellText: false,
+        celHTML: false,
+        cellStyles: false,
+        cellDates: true
+    });
+}
+function parse(fileName, course, groupName, subgroup) {
+    BaseBookInfo.workbook = readASheduleFile(fileName);
+    BaseBookInfo.sheetName = BaseBookInfo.workbook.SheetNames[BaseInfoOfSheet.nOfSheet];
+    BaseBookInfo.workingSheet = BaseBookInfo.workbook.Sheets[BaseBookInfo.sheetName];
+    BaseBookInfo.mergesInSheet = BaseBookInfo.workingSheet['!merges'];
+    BaseInfoOfSheet.dayName = findDayNameColumn();
     const dayRanges = findDaysRanges();
     // строка с названиями групп. Обычно распологается на строку выше, чем названия дней недели.
-    baseInfoOfSheet.groupNameRow = dayRanges[0].start - 1;
-    baseInfoOfSheet.group = findGroupColumnRange('ИС/б-18-3-о');
-    baseInfoOfSheet.subgroup = (subgroup === 0) ? baseInfoOfSheet.group.start : baseInfoOfSheet.group.end;
+    BaseInfoOfSheet.groupNameRow = dayRanges[0].start - 1;
+    BaseInfoOfSheet.group = findGroupColumnRange('ИС/б-18-3-о');
+    BaseInfoOfSheet.subgroup = (subgroup === 0) ? BaseInfoOfSheet.group.start : BaseInfoOfSheet.group.end;
+    const dayNameOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const parsedDays = dayRanges.map((el, i) => parseDay(el, dayNameOfWeek[i]));
     return joinParcedDays(parsedDays);
 }
+function setBaseBookInfo(course) {
+    BaseBookInfo.sheetName = BaseBookInfo.workbook.SheetNames.find(el => el.includes(course + 'к'));
+}
 function findGroupColumnRange(groupName) {
     const lastColumnInSheet = findLastColumnInSheet();
-    const rowValues = getValuesFromColumnRangeInRow(baseInfoOfSheet.groupNameRow, { start: 0, end: lastColumnInSheet });
+    const rowValues = getValuesFromColumnRangeInRow(BaseInfoOfSheet.groupNameRow, { start: 0, end: lastColumnInSheet });
     const group = rowValues.find(el => el.value === groupName);
-    const groupMerge = getMergeAroundCell({ r: baseInfoOfSheet.groupNameRow, c: group.column });
+    const groupMerge = getMergeAroundCell({ r: BaseInfoOfSheet.groupNameRow, c: group.column });
     return {
         start: groupMerge.s.c,
         end: groupMerge.e.c
     };
 }
 function findLastColumnInSheet() {
-    const rangeInSheet = workingSheet["!ref"];
+    const rangeInSheet = BaseBookInfo.workingSheet["!ref"];
     const lastColumnInLetters = rangeInSheet
         .split(':')[1] // последняя ячейка
         .split('')
@@ -93,7 +102,7 @@ function writeFile(outputFile, object) {
     });
 }
 function findDaysRanges(dayNameColumn = 0) {
-    const docMerges = workingSheet['!merges'];
+    const docMerges = BaseBookInfo.workingSheet['!merges'];
     const dayMerges = docMerges.filter(el => el.s.c === dayNameColumn && el.e.c === dayNameColumn)
         .map(el => {
         return {
@@ -106,7 +115,7 @@ function findDaysRanges(dayNameColumn = 0) {
 }
 function findDayNameColumn() {
     for (let nColumn = 0; nColumn < 5; nColumn++) {
-        let hasMergedCells = mergesInSheet.filter(el => el.s.c === nColumn && el.e.c === nColumn)
+        let hasMergedCells = BaseBookInfo.mergesInSheet.filter(el => el.s.c === nColumn && el.e.c === nColumn)
             .findIndex(el => {
             return (el.e.r - el.s.r) >= 7;
         });
@@ -127,24 +136,26 @@ function parseDay(rowRange, dayName) {
     let day = new Shedule();
     for (let i = 0; i < endRowOfDay - startRowOfDay + 1; i++) {
         const currentRow = i + startRowOfDay;
-        const cellValue = getCellValue({ c: baseInfoOfSheet.subgroup, r: currentRow });
+        const cellValue = getCellValue({ c: BaseInfoOfSheet.subgroup, r: currentRow });
         // если ячейка пустая, пропускаем
         if (typeof cellValue === undefined || !cellValue)
             continue;
         let lesson = {};
         lesson.name = cellValue;
         if (!lesson.name.includes("ВОЕННАЯ КАФЕДРА")) {
-            lesson.type = getCellValue({ c: baseInfoOfSheet.typeOfLesson, r: currentRow });
-            lesson.classroom = getCellValue({ c: baseInfoOfSheet.classroom, r: currentRow });
+            lesson.type = getCellValue({ c: BaseInfoOfSheet.typeOfLesson, r: currentRow });
+            lesson.classroom = getCellValue({ c: BaseInfoOfSheet.classroom, r: currentRow });
         }
         else {
             // нет смысла полностью обрабатывать дни военной кафедры.
+            lesson.type = '';
+            lesson.classroom = '';
             day = addLessonToDay(day, lesson, dayName, i);
             return day;
         }
         // проверяем на общие пары на потоке.
         if (lesson.name === lesson.type) {
-            lesson = getCommonLessonInfo({ c: baseInfoOfSheet.subgroup, r: currentRow });
+            lesson = getCommonLessonInfo({ c: BaseInfoOfSheet.subgroup, r: currentRow });
         }
         day = addLessonToDay(day, lesson, dayName, i);
     }
@@ -152,8 +163,8 @@ function parseDay(rowRange, dayName) {
 }
 function getCommonLessonInfo(address) {
     let lesson = {};
-    const docMerges = workingSheet['!merges'];
-    let cellValue = workingSheet[numberToCharAddress(address.c) + '' + (address.r + 1)];
+    const docMerges = BaseBookInfo.workingSheet['!merges'];
+    let cellValue = BaseBookInfo.workingSheet[numberToCharAddress(address.c) + '' + (address.r + 1)];
     let lessonRange;
     // найдем диапазон
     for (let merge of docMerges) {
@@ -197,8 +208,8 @@ function addLessonToDay(day, lesson, dayName, index) {
 }
 // получить значение в ячейке, даже если ячейка смежная
 function getCellValue(cellAddress) {
-    const docMerges = workingSheet['!merges'];
-    let cellValue = workingSheet[numberToCharAddress(cellAddress.c) + '' + (cellAddress.r + 1)];
+    const docMerges = BaseBookInfo.workingSheet['!merges'];
+    let cellValue = BaseBookInfo.workingSheet[numberToCharAddress(cellAddress.c) + '' + (cellAddress.r + 1)];
     // если в ячейке есть значение
     if (typeof cellValue != undefined && !!cellValue) {
         // возвращаем значение, избавляясь от пробелов
@@ -208,13 +219,13 @@ function getCellValue(cellAddress) {
         // проверяем, является ли ячейка "частью" другой ячейки
         let merge = getMergeAroundCell(cellAddress);
         if (merge) {
-            cellValue = workingSheet[numberToCharAddress(merge.s.c) + '' + (merge.s.r + 1)];
+            cellValue = BaseBookInfo.workingSheet[numberToCharAddress(merge.s.c) + '' + (merge.s.r + 1)];
         }
         return (!cellValue) ? '' : (cellValue.v + '').trim().split(/\s+/).join(' ');
     }
 }
 function getMergeAroundCell(cellAddress) {
-    const docMerges = mergesInSheet;
+    const docMerges = BaseBookInfo.mergesInSheet;
     for (let merge of docMerges) {
         // если попадает в границы диапазона одного из !merges
         if ((cellAddress.c >= merge.s.c && cellAddress.c <= merge.e.c) &&
@@ -227,7 +238,7 @@ function getMergeAroundCell(cellAddress) {
 }
 // получить значение ячейки без учитывания смежных ячеек
 function getStrictCellValue(cellAddress) {
-    let cellValue = workingSheet[numberToCharAddress(cellAddress.c) + '' + (cellAddress.r + 1)];
+    let cellValue = BaseBookInfo.workingSheet[numberToCharAddress(cellAddress.c) + '' + (cellAddress.r + 1)];
     if (typeof cellValue != undefined && !!cellValue) {
         // возвращаем значение, избавляясь от пробелов
         return (cellValue.v + '').trim().split(/\s+/).join(' ');
