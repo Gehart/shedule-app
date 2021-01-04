@@ -39,35 +39,37 @@ function main() {
     const dayRanges = findDaysRanges();
     // строка с названиями групп
     baseInfoOfSheet.groupNameRow = dayRanges[0].start - 1;
-    baseInfoOfSheet.group = findGroupColumns();
+    baseInfoOfSheet.group = findGroupColumns('ИС/б-18-3-о');
     const parsedDays = dayRanges.map((el, i) => parseDay(el, dayNameOfWeek[i]));
     const combined = joinParcedDays(parsedDays);
     writeFile('out/result.json', combined);
 }
-function findGroupColumns() {
+function findGroupColumns(groupName) {
+    const lastColumn = findLastColumnInSheet();
+    const rowValues = getValuesFromColumnRangeInRow(baseInfoOfSheet.groupNameRow, { start: 0, end: lastColumn });
+    const groupNameRegex = new RegExp('[а-яА-ЯёЁ]{2,7}\/[а-яА-ЯёЁ]*-[а-яА-ЯёЁ0-9-]*');
+    // const groupNames = rowValues.filter(el => groupNameRegex.test(el.value));
+    const group = rowValues.find(el => el.value === groupName);
+    console.log(group);
+    return { start: 0, end: 10 };
+}
+function findLastColumnInSheet() {
     const rangeInSheet = workingSheet["!ref"];
-    // const lastCell = rangeInSheet.split(':')[1];
     const lastColumnInLetters = rangeInSheet
         .split(':')[1] // последняя ячейка
         .split('')
         .filter(el => /[A-Ra-r]/.test(el)) // отделяем буквы (адрес колонки) от чисел
         .join('');
     // TODO: найти последнюю колонку и научить переводить буквы в число, а потом найти, наконец, группу
-    const lastColumn = charToNumberAddress(lastColumnInLetters);
-    const rowValues = getValuesFromColumnRangeInRow(baseInfoOfSheet.groupNameRow, { start: 0, end: lastColumn });
-    return { start: 0, end: 10 };
+    return charToNumberAddress(lastColumnInLetters);
 }
 function getValuesFromColumnRangeInRow(row, range) {
-    // TODO: получить массив мерджев в строке
-    for (let merge of mergesInSheet) {
-        if (row === merge.s.c === merge.e.c) {
-        }
+    let rowValues = [];
+    for (let i = range.start; i < range.end; i++) {
+        rowValues.push({ column: i, value: getStrictCellValue({ r: row, c: i }) });
     }
-    console.log('row', row);
-    const rowMerges = mergesInSheet.filter(merge => row === merge.s.r && row === merge.e.r);
-    console.log("rowMerges", rowMerges);
-    // (cellAddress.r >= merge.s.r && cellAddress.r <= merge.e.r)) 
-    // TODO: в каждом из них взять значение
+    // console.log("rowValues", rowValues.filter(el => el.value));
+    return rowValues.filter(el => el.value);
 }
 function joinParcedDays(parsedDays) {
     return parsedDays.reduce((combined, current) => {
@@ -206,6 +208,17 @@ function getCellValue(cellAddress) {
         }
     }
 }
+// получить значение ячейки без учитывания смежных ячеек
+function getStrictCellValue(cellAddress) {
+    let cellValue = workingSheet[numberToCharAddress(cellAddress.c) + '' + (cellAddress.r + 1)];
+    if (typeof cellValue != undefined && !!cellValue) {
+        // возвращаем значение, избавляясь от пробелов
+        return (cellValue.v + '').trim().split(/\s+/).join(' ');
+    }
+    else {
+        return cellValue;
+    }
+}
 function numberToCharAddress(n) {
     const ACode = 'A'.charCodeAt(0);
     const ZCode = 'Z'.charCodeAt(0);
@@ -229,27 +242,3 @@ function charToNumberAddress(charAddress) {
     }, 0);
     return numberAdr - 1;
 }
-/*
-найти столбец подгруппы
-идти сверху вниз, проверяя на !merges
-определить столбцы дня недели, столбца пар, времени, чет/нечет, тип занятий, аудитория
-
-неделя
-    четная
-        день
-            пары
-                номер пары
-                пара
-                время пары ?
-                тип занятий
-                аудитория
-
-    нечетная
-        день
-            пары
-                номер пары
-                пара
-                время пары ?
-                тип занятий
-                аудитория
-*/
