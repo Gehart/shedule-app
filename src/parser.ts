@@ -58,9 +58,10 @@ function parse(fileName: string, course: number, groupName: string, subgroup: 0 
     const dayRanges: RowRange[] = findDaysRanges(BaseInfoOfSheet.dayName);
     // строка с названиями групп. Обычно распологается на строку выше, чем названия дней недели.
     BaseInfoOfSheet.groupNameRow = dayRanges[0].start - 1;
-    
     BaseInfoOfSheet.group = findGroupColumnRange(groupName);
     BaseInfoOfSheet.subgroup = (subgroup === 0) ? BaseInfoOfSheet.group.start : BaseInfoOfSheet.group.end;
+    BaseInfoOfSheet.typeOfLesson = BaseInfoOfSheet.group.end + 1; 
+    BaseInfoOfSheet.classroom = BaseInfoOfSheet.group.end + 2;
 
     const dayNameOfWeek = ['monday','tuesday','wednesday','thursday','friday','saturday'];
     const parsedDays = dayRanges.map((el, i) => parseDay(el, dayNameOfWeek[i]));
@@ -99,10 +100,9 @@ function findLastColumnInSheet() {
         .filter(el => /[A-Ra-r]/.test(el))   // отделяем буквы (адрес колонки) от чисел
         .join('');
     
-    // TODO: найти последнюю колонку и научить переводить буквы в число, а потом найти, наконец, группу
-     
     return charToNumberAddress(lastColumnInLetters);
 }
+
 function getValuesFromColumnRangeInRow(row: number, range: ColumnRange) {
     let rowValues = [];
     for(let i = range.start; i < range.end; i++) {
@@ -210,16 +210,18 @@ function parseDay(rowRange: RowRange, dayName: string): Shedule {
 
         let lesson: Lesson = {};
         lesson.name = cellValue;
-        if (!lesson.name.includes("ВОЕННАЯ КАФЕДРА")) {
+        if (!lesson.name.includes("ВОЕННАЯ КАФЕДРА") && 
+            !lesson.name.includes("ОБЩЕУНИВЕРСИТЕТСКИЙ ПУЛ")) 
+        {
             lesson.type = getCellValue({ c: BaseInfoOfSheet.typeOfLesson, r: currentRow });
             lesson.classroom = getCellValue({ c: BaseInfoOfSheet.classroom, r: currentRow });
         }
         else {
-            // нет смысла полностью обрабатывать дни военной кафедры.
+            // нет смысла полностью обрабатывать дни военной кафедры и общий пул.
             lesson.type = '';
             lesson.classroom = '';
             day = addLessonToDay(day, lesson, dayName, i);
-            return day;
+            // return day;
         }
 
         // проверяем на общие пары на потоке.

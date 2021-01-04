@@ -51,6 +51,8 @@ function parse(fileName, course, groupName, subgroup) {
     BaseInfoOfSheet.groupNameRow = dayRanges[0].start - 1;
     BaseInfoOfSheet.group = findGroupColumnRange(groupName);
     BaseInfoOfSheet.subgroup = (subgroup === 0) ? BaseInfoOfSheet.group.start : BaseInfoOfSheet.group.end;
+    BaseInfoOfSheet.typeOfLesson = BaseInfoOfSheet.group.end + 1;
+    BaseInfoOfSheet.classroom = BaseInfoOfSheet.group.end + 2;
     const dayNameOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const parsedDays = dayRanges.map((el, i) => parseDay(el, dayNameOfWeek[i]));
     return joinParcedDays(parsedDays);
@@ -80,7 +82,6 @@ function findLastColumnInSheet() {
         .split('')
         .filter(el => /[A-Ra-r]/.test(el)) // отделяем буквы (адрес колонки) от чисел
         .join('');
-    // TODO: найти последнюю колонку и научить переводить буквы в число, а потом найти, наконец, группу
     return charToNumberAddress(lastColumnInLetters);
 }
 function getValuesFromColumnRangeInRow(row, range) {
@@ -149,16 +150,17 @@ function parseDay(rowRange, dayName) {
             continue;
         let lesson = {};
         lesson.name = cellValue;
-        if (!lesson.name.includes("ВОЕННАЯ КАФЕДРА")) {
+        if (!lesson.name.includes("ВОЕННАЯ КАФЕДРА") &&
+            !lesson.name.includes("ОБЩЕУНИВЕРСИТЕТСКИЙ ПУЛ")) {
             lesson.type = getCellValue({ c: BaseInfoOfSheet.typeOfLesson, r: currentRow });
             lesson.classroom = getCellValue({ c: BaseInfoOfSheet.classroom, r: currentRow });
         }
         else {
-            // нет смысла полностью обрабатывать дни военной кафедры.
+            // нет смысла полностью обрабатывать дни военной кафедры и общий пул.
             lesson.type = '';
             lesson.classroom = '';
             day = addLessonToDay(day, lesson, dayName, i);
-            return day;
+            // return day;
         }
         // проверяем на общие пары на потоке.
         if (lesson.name === lesson.type) {
