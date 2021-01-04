@@ -193,20 +193,24 @@ function getCellValue(cellAddress) {
     }
     else {
         // проверяем, является ли ячейка "частью" другой ячейки
-        for (let merge of docMerges) {
-            // если попадает в границы диапазона одного из !merges
-            if ((cellAddress.c >= merge.s.c && cellAddress.c <= merge.e.c) &&
-                (cellAddress.r >= merge.s.r && cellAddress.r <= merge.e.r)) {
-                cellValue = workingSheet[numberToCharAddress(merge.s.c) + '' + (merge.s.r + 1)];
-            }
+        let merge = getMergeAroundCell(cellAddress);
+        if (merge) {
+            cellValue = workingSheet[numberToCharAddress(merge.s.c) + '' + (merge.s.r + 1)];
         }
-        if (!cellValue) {
-            return '';
-        }
-        else {
-            return (cellValue.v + '').trim().split(/\s+/).join(' ');
+        return (!cellValue) ? '' : (cellValue.v + '').trim().split(/\s+/).join(' ');
+    }
+}
+function getMergeAroundCell(cellAddress) {
+    const docMerges = mergesInSheet;
+    for (let merge of docMerges) {
+        // если попадает в границы диапазона одного из !merges
+        if ((cellAddress.c >= merge.s.c && cellAddress.c <= merge.e.c) &&
+            (cellAddress.r >= merge.s.r && cellAddress.r <= merge.e.r)) {
+            // cellValue = workingSheet[numberToCharAddress(merge.s.c) + '' + (merge.s.r + 1)];
+            return merge;
         }
     }
+    return null;
 }
 // получить значение ячейки без учитывания смежных ячеек
 function getStrictCellValue(cellAddress) {
