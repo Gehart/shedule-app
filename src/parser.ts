@@ -12,18 +12,15 @@ const BaseBookInfo = {
 
 // объект с адресами основных колонок - времени занятий, группы, аудитории
 const BaseInfoOfSheet = {
-    nOfSheet: 2,
+    nOfSheet: 0,
     dayName: 0,
-    groupNameRow: 8,
-    group: <ColumnRange>{
-        "start": 12,
-        "end": 13 
-    },
-    subgroup: 13,
-    typeOfLesson: 14, 
-    classroom: 15,
-    startRowOfSheet: -1,
-    endRowOfSheet: 90,
+    groupNameRow: 0,
+    group: <ColumnRange>{},
+    subgroup: 0,
+    typeOfLesson: 0, 
+    classroom: 0,
+    startRowOfSheet: 0,
+    endRowOfSheet: 0,
 };
 
 
@@ -32,12 +29,56 @@ function main() {
     const resourcesDir = 'resources/';
     const xlsFile = 'univ_shedule.xls';
     try {
-        const parsedShedule = parse(resourcesDir + xlsFile, 2, 'ИС/б-19-2о', 0);
+        const parsedShedule = parse(resourcesDir + xlsFile, 4, 'ИС/б-17-2-о', 0);
         writeFile('out/result.json', parsedShedule);
     }
     catch(e){
         console.error(e);
     }
+}
+
+function parse(fileName: string, course: number, groupName: string, subgroup: 0 | 1): Shedule | null {
+    BaseBookInfo.workbook = readASheduleFile(fileName);
+    // setBaseBookInfo(course);
+    const sheetNames = BaseBookInfo.workbook.SheetNames.filter(el => el.includes(course + 'к'));
+    const dayNameOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    let parsedDays;
+    for (let sheet of sheetNames) {
+        try {
+            BaseBookInfo.sheetName = sheet;
+            BaseBookInfo.workingSheet = BaseBookInfo.workbook.Sheets[BaseBookInfo.sheetName];
+            BaseBookInfo.mergesInSheet = BaseBookInfo.workingSheet['!merges'];
+
+            BaseInfoOfSheet.dayName = findDayNameColumn();
+            const dayRanges: RowRange[] = findDaysRanges(BaseInfoOfSheet.dayName);
+            // строка с названиями групп. Обычно распологается на строку выше, чем названия дней недели.
+            // цикл для возможность того, что названия группы располагаются не там, где ожидалось
+            for (let i = 0; i < 2; i++) {
+                BaseInfoOfSheet.groupNameRow = dayRanges[0].start - i - 1;
+                BaseInfoOfSheet.group = findGroupColumnRange(groupName);
+                if (BaseInfoOfSheet.group !== null) break;
+            }
+            if(BaseInfoOfSheet.group === null) {
+                console.log('group', BaseInfoOfSheet.group);
+                
+                continue;
+            }
+            BaseInfoOfSheet.subgroup = (subgroup === 0) ? BaseInfoOfSheet.group.start : BaseInfoOfSheet.group.end;
+            BaseInfoOfSheet.typeOfLesson = BaseInfoOfSheet.group.end + 1;
+            BaseInfoOfSheet.classroom = BaseInfoOfSheet.group.end + 2;
+
+            parsedDays = dayRanges.map((el, i) => parseDay(el, dayNameOfWeek[i]));
+            console.log('parsedDays', parsedDays);
+            if (typeof parsedDays !== undefined) break;
+        }
+        catch (e) {
+            continue;
+        }
+    }
+    if (typeof parsedDays === 'undefined') {
+        throw new Error("Не нашли группy "+ groupName + " в файле");
+    } 
+    return joinParcedDays(parsedDays);
 }
 
 function readASheduleFile(fileName: string) {
@@ -50,39 +91,21 @@ function readASheduleFile(fileName: string) {
     });
 }
 
-function parse(fileName: string, course: number, groupName: string, subgroup: 0 | 1) {
-    BaseBookInfo.workbook = readASheduleFile(fileName);
-    setBaseBookInfo(course);
-
-    BaseInfoOfSheet.dayName = findDayNameColumn();
-    const dayRanges: RowRange[] = findDaysRanges(BaseInfoOfSheet.dayName);
-    // строка с названиями групп. Обычно распологается на строку выше, чем названия дней недели.
-    BaseInfoOfSheet.groupNameRow = dayRanges[0].start - 1;
-    BaseInfoOfSheet.group = findGroupColumnRange(groupName);
-    BaseInfoOfSheet.subgroup = (subgroup === 0) ? BaseInfoOfSheet.group.start : BaseInfoOfSheet.group.end;
-    BaseInfoOfSheet.typeOfLesson = BaseInfoOfSheet.group.end + 1; 
-    BaseInfoOfSheet.classroom = BaseInfoOfSheet.group.end + 2;
-
-    const dayNameOfWeek = ['monday','tuesday','wednesday','thursday','friday','saturday'];
-    const parsedDays = dayRanges.map((el, i) => parseDay(el, dayNameOfWeek[i]));
-    
-    return joinParcedDays(parsedDays);
-}
-
+// TODO: сделать так, чтобы можно было обрабатывать все листы 4 курса
 function setBaseBookInfo(course: number) {
     BaseBookInfo.sheetName = BaseBookInfo.workbook.SheetNames.find(el => el.includes(course + 'к'));
     BaseBookInfo.workingSheet = BaseBookInfo.workbook.Sheets[BaseBookInfo.sheetName];
     BaseBookInfo.mergesInSheet = BaseBookInfo.workingSheet['!merges'];
 }
 
-function findGroupColumnRange(groupName: string): ColumnRange {
+function findGroupColumnRange(groupName: string): ColumnRange | null {
     const lastColumnInSheet = findLastColumnInSheet();
     const rowValues = getValuesFromColumnRangeInRow(BaseInfoOfSheet.groupNameRow, {start: 0, end: lastColumnInSheet});
     
     const group = rowValues.find(el => el.value === groupName);
     
     if (typeof group === "undefined") {
-        throw new Error("Не нашли группy "+groupName+" на листе \""+ BaseBookInfo.sheetName + "\"");
+        return null;
     }
 
     const groupMerge = getMergeAroundCell({r: BaseInfoOfSheet.groupNameRow, c: group.column});
@@ -136,6 +159,7 @@ function compareRowRange(a: RowRange, b: RowRange) {
 function findDaysRanges(dayNameColumn: number): RowRange[] {
     const docMerges = BaseBookInfo.workingSheet['!merges'];
     const dayMerges = docMerges.filter(el => el.s.c === dayNameColumn && el.e.c === dayNameColumn)
+        .filter(el => el.e.r - el.s.r >= 7)
         .map(el => { 
             return <RowRange>{
                 start: el.s.r,
@@ -211,6 +235,7 @@ function parseDay(rowRange: RowRange, dayName: string): Shedule {
         let lesson: Lesson = {};
         lesson.name = cellValue;
         if (!lesson.name.includes("ВОЕННАЯ КАФЕДРА") && 
+            !lesson.name.includes("ВОЕННО-УЧЕБНЫЙ ЦЕНТР") &&
             !lesson.name.includes("ОБЩЕУНИВЕРСИТЕТСКИЙ ПУЛ")) 
         {
             lesson.type = getCellValue({ c: BaseInfoOfSheet.typeOfLesson, r: currentRow });
@@ -220,7 +245,7 @@ function parseDay(rowRange: RowRange, dayName: string): Shedule {
             // нет смысла полностью обрабатывать дни военной кафедры и общий пул.
             lesson.type = '';
             lesson.classroom = '';
-            day = addLessonToDay(day, lesson, dayName, i);
+            // day = addLessonToDay(day, lesson, dayName, i);
             // return day;
         }
 
