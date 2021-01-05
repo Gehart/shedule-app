@@ -33,7 +33,6 @@ function main() {
 }
 function parse(data, course, groupName, subgroup) {
     BaseBookInfo.workbook = data;
-    // setBaseBookInfo(course);
     const sheetNames = BaseBookInfo.workbook.SheetNames.filter(el => el.includes(course + 'к'));
     const dayNameOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     let parsedDays;
@@ -47,14 +46,12 @@ function parse(data, course, groupName, subgroup) {
             // найдем столбец группы
             setGroup(groupName, dayRanges);
             if (BaseInfoOfSheet.group === null) {
-                console.log('group', BaseInfoOfSheet.group);
                 continue;
             }
             BaseInfoOfSheet.subgroup = (subgroup === 0) ? BaseInfoOfSheet.group.start : BaseInfoOfSheet.group.end;
             BaseInfoOfSheet.typeOfLesson = BaseInfoOfSheet.group.end + 1;
             BaseInfoOfSheet.classroom = BaseInfoOfSheet.group.end + 2;
             parsedDays = dayRanges.map((el, i) => parseDay(el, dayNameOfWeek[i]));
-            console.log('parsedDays', parsedDays);
             if (typeof parsedDays !== undefined)
                 break;
         }
@@ -85,12 +82,6 @@ function setGroup(groupName, dayRanges) {
         if (BaseInfoOfSheet.group !== null)
             break;
     }
-}
-// TODO: сделать так, чтобы можно было обрабатывать все листы 4 курса
-function setBaseBookInfo(course) {
-    BaseBookInfo.sheetName = BaseBookInfo.workbook.SheetNames.find(el => el.includes(course + 'к'));
-    BaseBookInfo.workingSheet = BaseBookInfo.workbook.Sheets[BaseBookInfo.sheetName];
-    BaseBookInfo.mergesInSheet = BaseBookInfo.workingSheet['!merges'];
 }
 function findGroupColumnRange(groupName) {
     const lastColumnInSheet = findLastColumnInSheet();
@@ -191,8 +182,6 @@ function parseDay(rowRange, dayName) {
             // нет смысла полностью обрабатывать дни военной кафедры и общий пул.
             lesson.type = '';
             lesson.classroom = '';
-            // day = addLessonToDay(day, lesson, dayName, i);
-            // return day;
         }
         // проверяем на общие пары на потоке.
         if (lesson.name === lesson.type) {

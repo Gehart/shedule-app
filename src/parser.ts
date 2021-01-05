@@ -40,9 +40,9 @@ function main() {
 
 function parse(data: any, course: number, groupName: string, subgroup: 0 | 1): Shedule | null {
     BaseBookInfo.workbook = data;
-    // setBaseBookInfo(course);
     const sheetNames = BaseBookInfo.workbook.SheetNames.filter(el => el.includes(course + 'к'));
     const dayNameOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
     let parsedDays;
     for (let sheet of sheetNames) {
         try {
@@ -55,7 +55,6 @@ function parse(data: any, course: number, groupName: string, subgroup: 0 | 1): S
             // найдем столбец группы
             setGroup(groupName, dayRanges);
             if(BaseInfoOfSheet.group === null) {
-                console.log('group', BaseInfoOfSheet.group);
                 continue;
             }
             BaseInfoOfSheet.subgroup = (subgroup === 0) ? BaseInfoOfSheet.group.start : BaseInfoOfSheet.group.end;
@@ -63,7 +62,6 @@ function parse(data: any, course: number, groupName: string, subgroup: 0 | 1): S
             BaseInfoOfSheet.classroom = BaseInfoOfSheet.group.end + 2;
 
             parsedDays = dayRanges.map((el, i) => parseDay(el, dayNameOfWeek[i]));
-            console.log('parsedDays', parsedDays);
             if (typeof parsedDays !== undefined) break;
         }
         catch (e) {
@@ -95,13 +93,6 @@ function setGroup(groupName: string, dayRanges: RowRange[]) {
         if (BaseInfoOfSheet.group !== null) 
             break;
     }
-}
-
-// TODO: сделать так, чтобы можно было обрабатывать все листы 4 курса
-function setBaseBookInfo(course: number) {
-    BaseBookInfo.sheetName = BaseBookInfo.workbook.SheetNames.find(el => el.includes(course + 'к'));
-    BaseBookInfo.workingSheet = BaseBookInfo.workbook.Sheets[BaseBookInfo.sheetName];
-    BaseBookInfo.mergesInSheet = BaseBookInfo.workingSheet['!merges'];
 }
 
 function findGroupColumnRange(groupName: string): ColumnRange | null {
@@ -251,8 +242,6 @@ function parseDay(rowRange: RowRange, dayName: string): Shedule {
             // нет смысла полностью обрабатывать дни военной кафедры и общий пул.
             lesson.type = '';
             lesson.classroom = '';
-            // day = addLessonToDay(day, lesson, dayName, i);
-            // return day;
         }
 
         // проверяем на общие пары на потоке.
