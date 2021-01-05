@@ -29,7 +29,8 @@ function main() {
     const resourcesDir = 'resources/';
     const xlsFile = 'univ_shedule.xls';
     try {
-        const parsedShedule = parse(resourcesDir + xlsFile, 4, 'ИС/б-17-2-о', 0);
+        const data = readASheduleFile(resourcesDir + xlsFile);
+        const parsedShedule = parse(data, 4, 'ИВТ/б-17-1-о', 0);
         writeFile('out/result.json', parsedShedule);
     }
     catch(e){
@@ -37,8 +38,8 @@ function main() {
     }
 }
 
-function parse(fileName: string, course: number, groupName: string, subgroup: 0 | 1): Shedule | null {
-    BaseBookInfo.workbook = readASheduleFile(fileName);
+function parse(data: any, course: number, groupName: string, subgroup: 0 | 1): Shedule | null {
+    BaseBookInfo.workbook = data;
     // setBaseBookInfo(course);
     const sheetNames = BaseBookInfo.workbook.SheetNames.filter(el => el.includes(course + 'к'));
     const dayNameOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -51,16 +52,10 @@ function parse(fileName: string, course: number, groupName: string, subgroup: 0 
 
             BaseInfoOfSheet.dayName = findDayNameColumn();
             const dayRanges: RowRange[] = findDaysRanges(BaseInfoOfSheet.dayName);
-            // строка с названиями групп. Обычно распологается на строку выше, чем названия дней недели.
-            // цикл для возможность того, что названия группы располагаются не там, где ожидалось
-            for (let i = 0; i < 2; i++) {
-                BaseInfoOfSheet.groupNameRow = dayRanges[0].start - i - 1;
-                BaseInfoOfSheet.group = findGroupColumnRange(groupName);
-                if (BaseInfoOfSheet.group !== null) break;
-            }
+            // найдем столбец группы
+            setGroup(groupName, dayRanges);
             if(BaseInfoOfSheet.group === null) {
                 console.log('group', BaseInfoOfSheet.group);
-                
                 continue;
             }
             BaseInfoOfSheet.subgroup = (subgroup === 0) ? BaseInfoOfSheet.group.start : BaseInfoOfSheet.group.end;
@@ -89,6 +84,17 @@ function readASheduleFile(fileName: string) {
         cellStyles: false,
         cellDates: true
     });
+}
+
+function setGroup(groupName: string, dayRanges: RowRange[]) {
+    // строка с названиями групп. Обычно распологается на строку выше, чем названия дней недели.
+    // цикл для возможность того, что названия группы располагаются не там, где ожидалось
+    for (let i = 0; i < 2; i++) {
+        BaseInfoOfSheet.groupNameRow = dayRanges[0].start - i - 1;
+        BaseInfoOfSheet.group = findGroupColumnRange(groupName);
+        if (BaseInfoOfSheet.group !== null) 
+            break;
+    }
 }
 
 // TODO: сделать так, чтобы можно было обрабатывать все листы 4 курса
